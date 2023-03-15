@@ -18,7 +18,7 @@ module Capistrano
       end
 
       def slack_webhook_url
-        fetch(:slack_webhook_url)
+        fetch(:slack_webhook_url) rescue nil
       end
 
       def slack_connect(message)
@@ -57,28 +57,32 @@ module Capistrano
 
           namespace :slack do
             task :starting do
-              announced_deployer = ActiveSupport::Multibyte::Chars.new(fetch(:deployer)).mb_chars.normalize(:kd).gsub(/[^\x00-\x7F]/,'').to_s
-              msg = if fetch(:branch, nil)
-                "#{announced_deployer} is deploying #{fetch(:application)}'s #{branch} to #{fetch(:stage, 'production')}"
-              else
-                "#{announced_deployer} is deploying #{fetch(:application)} to #{fetch(:stage, 'production')}"
-              end
+              if slack_webhook_url.present?
+                announced_deployer = ActiveSupport::Multibyte::Chars.new(fetch(:deployer)).mb_chars.normalize(:kd).gsub(/[^\x00-\x7F]/,'').to_s
+                msg = if fetch(:branch, nil)
+                  "#{announced_deployer} is deploying #{fetch(:application)}'s #{branch} to #{fetch(:stage, 'production')}"
+                else
+                  "#{announced_deployer} is deploying #{fetch(:application)} to #{fetch(:stage, 'production')}"
+                end
 
-              slack_connect(msg)
-              set(:start_time, Time.now)
+                slack_connect(msg)
+                set(:start_time, Time.now)
+              end
             end
 
             task :finished do
               begin
-                announced_deployer = fetch(:deployer)
-                msg = "#{announced_deployer} deployed #{fetch(:application)} successfully"
-                if start_time = fetch(:start_time, nil)
-                  elapsed = Time.now.to_i - start_time.to_i
-                  msg << " in #{elapsed} seconds."
-                else
-                  msg << "."
+                if slack_webhook_url.present?
+                  announced_deployer = fetch(:deployer)
+                  msg = "#{announced_deployer} deployed #{fetch(:application)} successfully"
+                  if start_time = fetch(:start_time, nil)
+                    elapsed = Time.now.to_i - start_time.to_i
+                    msg << " in #{elapsed} seconds."
+                  else
+                    msg << "."
+                  end
+                  slack_connect(msg)
                 end
-                slack_connect(msg)
               end
             end
           end
